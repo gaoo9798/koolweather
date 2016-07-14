@@ -1,5 +1,8 @@
 package com.gaoo.coolweather.utils;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 import android.text.TextUtils;
 
 import com.gaoo.coolweather.db.CoolWeatherDB;
@@ -7,10 +10,17 @@ import com.gaoo.coolweather.model.City;
 import com.gaoo.coolweather.model.County;
 import com.gaoo.coolweather.model.Province;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 /**
  * 服务器返回的省市县数据都是“代号|城市,代号|城市”这种格式的
  * 需要一个工具类来解析和处理这种数据
- *
+ * <p/>
  * 解析的规则就是先按逗号分隔，再按单竖线分隔，
  * 接着将解析出来的数据设置到实体 类中
  */
@@ -61,7 +71,7 @@ public class Utility {
     /**
      * 解析和处理服务器返回的县级数据
      */
-    public static boolean handleCountiesResponse(CoolWeatherDB coolWeatherDB,String response, int cityId) {
+    public static boolean handleCountiesResponse(CoolWeatherDB coolWeatherDB, String response, int cityId) {
         if (!TextUtils.isEmpty(response)) {
             String[] allCounties = response.split(",");
             if (allCounties != null && allCounties.length > 0) {
@@ -78,5 +88,48 @@ public class Utility {
             }
         }
         return false;
+    }
+
+    /**
+     * 解析服务器返回的JSON 数据，并将解析出的数据存储到本地
+     *
+     * @param context
+     * @param response
+     */
+    public static void handleWeatherResponse(Context context, String response) {
+        try {
+            JSONObject jsonObject = new JSONObject(response);
+            JSONObject weatherInfo = jsonObject.getJSONObject("weatherinfo");
+            String cityName = weatherInfo.getString("city");
+            String weatherCode = weatherInfo.getString("cityid");
+            String temp1 = weatherInfo.getString("temp1");
+            String temp2 = weatherInfo.getString("temp2");
+            String weatherDesp = weatherInfo.getString("weather");
+            String publishTime = weatherInfo.getString("ptime");
+            saveWeatherInfo(context, cityName, weatherCode, temp1, temp2,
+                    weatherDesp, publishTime);
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 将服务器返回的所有天气信息存储到SharedPreferences 文件中。
+     */
+    private static void saveWeatherInfo(Context context, String cityName, String weatherCode,
+                                        String temp1, String temp2, String weatherDesp, String publishTime) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy 年M 月d 日",Locale.CHINA);
+
+        SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(context).edit();
+        editor.putBoolean("city_selected", true);
+        editor.putString("city_name", cityName);
+        editor.putString("weather_code", weatherCode);
+        editor.putString("temp1", temp1);
+        editor.putString("temp2", temp2);
+        editor.putString("weather_desp", weatherDesp);
+        editor.putString("publish_time", publishTime);
+        editor.putString("current_date", sdf.format(new Date()));
+        editor.commit();
     }
 }

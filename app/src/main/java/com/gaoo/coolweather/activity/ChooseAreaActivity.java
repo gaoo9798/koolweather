@@ -1,11 +1,15 @@
 package com.gaoo.coolweather.activity;
 
 import android.app.ProgressDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
@@ -36,7 +40,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
     private TextView titleText;
     private ListView listView;
     private ArrayAdapter<String> mAdapter;
-    private CoolWeatherDB mCoolWeaterDB;
+    private CoolWeatherDB mCoolWeatherDB;
     private List<String> dataList = new ArrayList<>();
 
     /**
@@ -68,6 +72,15 @@ public class ChooseAreaActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+        if (sp.getBoolean("city_selected", false)) {
+            Intent intent = new Intent(this, WeatherActivity.class);
+            startActivity(intent);
+            finish();
+            return;
+        }
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.choose_area);
 
         listView = (ListView) findViewById(R.id.list_view);
@@ -75,7 +88,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
         mAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, dataList);
 
         listView.setAdapter(mAdapter);
-        mCoolWeaterDB = CoolWeatherDB.getInstance(this);
+        mCoolWeatherDB = CoolWeatherDB.getInstance(this);
 
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -86,6 +99,13 @@ public class ChooseAreaActivity extends AppCompatActivity {
                 } else if (currentLevel == LEVEL_CITY) {
                     selectedCity = cityList.get(position);
                     queryCounties();
+                } else if (currentLevel == LEVEL_COUNTY) {
+                    //   如果当前级别是 LEVEL_COUNTY，就启动 WeatherActivity，并把当前选中县的县级代号传递过去
+                    String countyCode = countyList.get(position).getCountyCode();
+                    Intent intent = new Intent(ChooseAreaActivity.this, WeatherActivity.class);
+                    intent.putExtra("county_code", countyCode);
+                    startActivity(intent);
+                    finish();
                 }
             }
         });
@@ -97,7 +117,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
      * 查询全国所有的省，优先从数据库查询，如果没有查询到再去服务器上查询。
      */
     private void queryProvinces() {
-        provinceList = mCoolWeaterDB.loadProvinces(); //从数据库中读取省级数据
+        provinceList = mCoolWeatherDB.loadProvinces(); //从数据库中读取省级数据
         if (provinceList.size() > 0) {
             dataList.clear();
             for (Province province : provinceList) {
@@ -105,7 +125,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
             }
             mAdapter.notifyDataSetChanged(); //刷新界面
 
-            listView.setAdapter(mAdapter);
+            listView.setSelection(0);
             titleText.setText("中国");
             currentLevel = LEVEL_PROVINCE;
         } else {
@@ -119,7 +139,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
      * 查询选中省内所有的市，优先从数据库查询，如果没有查询到再去服务器上查询。
      */
     private void queryCities() {
-        cityList = mCoolWeaterDB.loadCities(selectedProvince.getId());
+        cityList = mCoolWeatherDB.loadCities(selectedProvince.getId());
         if (cityList.size() > 0) {
             dataList.clear();
             for (City city : cityList) {
@@ -140,7 +160,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
      * 查询选中市内所有的县，优先从数据库查询，如果没有查询到再去服务器上查询。
      */
     private void queryCounties() {
-        countyList = mCoolWeaterDB.loadCounties(selectedCity.getId());
+        countyList = mCoolWeatherDB.loadCounties(selectedCity.getId());
         if (countyList.size() > 0) {
             dataList.clear();
             for (County county : countyList) {
@@ -149,6 +169,7 @@ public class ChooseAreaActivity extends AppCompatActivity {
             mAdapter.notifyDataSetChanged();
             listView.setSelection(0);
             titleText.setText(selectedCity.getCityName());
+            currentLevel = LEVEL_COUNTY;
         } else {
             //从服务器查询数据
             queryFromServer(selectedCity.getCityCode(), "county");
@@ -177,12 +198,12 @@ public class ChooseAreaActivity extends AppCompatActivity {
             public void onFinish(String response) {
                 boolean result = false;
                 if ("province".equals(type)) {
-                    result = Utility.handleProvincesResponse(mCoolWeaterDB, response);
+                    result = Utility.handleProvincesResponse(mCoolWeatherDB, response);
                 } else if ("city".equals(type)) {
-                    result = Utility.handleCitiesResponse(mCoolWeaterDB, response, selectedProvince.getId());
+                    result = Utility.handleCitiesResponse(mCoolWeatherDB, response, selectedProvince.getId());
 
                 } else if ("county".equals(type)) {
-                    result = Utility.handleCountiesResponse(mCoolWeaterDB, response, selectedCity.getId());
+                    result = Utility.handleCountiesResponse(mCoolWeatherDB, response, selectedCity.getId());
                 }
                 if (result) {
                     // 通过runOnUiThread()方法回到主线程处理逻辑
@@ -223,12 +244,12 @@ public class ChooseAreaActivity extends AppCompatActivity {
 
     //显示对话框
     private void showProgressDialog() {
-                if (progressDialog == null) {
-                    progressDialog = new ProgressDialog(ChooseAreaActivity.this);
-                    progressDialog.setMessage("正在加载中...");
-                    progressDialog.setCanceledOnTouchOutside(false);
-                }
-                progressDialog.show();
+        if (progressDialog == null) {
+            progressDialog = new ProgressDialog(ChooseAreaActivity.this);
+            progressDialog.setMessage("正在加载中...");
+            progressDialog.setCanceledOnTouchOutside(false);
+        }
+        progressDialog.show();
     }
 
     //关闭对话框
